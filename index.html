@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="styles.css" />
     <title>xValencia - Alertas en Tiempo Real</title>
   </head>
 
@@ -12,12 +13,11 @@
       <p>Alertas en tiempo real para la comunidad</p>
     </header>
 
-    <main>
-      <section id="alerts">
-        <h2>Alertas Actuales</h2>
-        <div id="alert-list"></div>
-      </section>
+    <button type="button" id="danger-alert-btn" onclick="llamar112()">
+      Botón del pánico
+    </button>
 
+    <main>
       <section id="publish-alert">
         <h2>Publicar una Nueva Alerta</h2>
         <form id="alert-form">
@@ -36,6 +36,10 @@
 
           <button type="submit">Enviar Alerta</button>
         </form>
+      </section>
+      <section id="alerts">
+        <h2>Alertas Actuales</h2>
+        <div id="alert-list"></div>
       </section>
     </main>
 
@@ -64,12 +68,10 @@
         measurementId: 'G-KF5BNC5VY7',
       };
 
-      // Inicializar Firebase y Firestore
       const app = initializeApp(firebaseConfig);
       const analytics = getAnalytics(app);
       const db = getFirestore(app);
 
-      // Referencia a la colección de alertas en Firestore
       const alertsRef = collection(db, 'alerts');
 
       const toRad = (defrees) => {
@@ -101,7 +103,7 @@
             const alertList = document.getElementById('alert-list');
             const q = query(alertsRef, orderBy('timestamp', 'desc'));
             onSnapshot(q, (snapshot) => {
-              alertList.innerHTML = ''; // Limpia el contenido antes de mostrar alertas nuevas
+              alertList.innerHTML = '';
 
               snapshot.forEach((doc) => {
                 const alertData = doc.data();
@@ -131,9 +133,7 @@
                 alertItem.innerHTML = `
                             <h3>${alertData.title}</h3>
                             <p>${alertData.description}</p>
-                            <p>Coordenadas: ${alertData.latitude}, ${
-                  alertData.longitude
-                }</p>
+                           <p>Coordenadas: ${alertData.latitude.toString()}, ${alertData.longitude.toString()}</p>
                             <p>Prioridad: ${alertData.priority || 'media'}</p>
                             ${distanciaTexto}
                             <p>${new Date(
@@ -160,16 +160,20 @@
         description,
         priority,
         latitude = null,
-        longitude = null
+        longitude = null,
+        isImmediate = false
       ) {
         try {
+          const now = new Date();
+          const expirationTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
           await addDoc(alertsRef, {
             title: title,
             description: description,
-            priority: priority,
+            priority: isImmediate ? 'alta' : priority,
             latitude: latitude,
             longitude: longitude,
             timestamp: serverTimestamp(),
+            expirationTimestamp: expirationTime,
           });
           alert('Alerta enviada con éxito');
           alertForm.reset();
@@ -216,6 +220,47 @@
           await publicarAlerta(title, description, priority, null, null);
         }
       });
+
+      function llamar112() {
+        // Abrir el marcador del teléfono con el número 112
+        window.location.href = 'tel:+34644429814';
+
+        // Publicar una alerta de peligro inmediato después de intentar la llamada
+        const title = '¡Peligro Inmediato!';
+        const description = 'Llamada de emergencia al 112 solicitada';
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const latitude = position.coords.latitude;
+              const longitude = position.coords.longitude;
+              await publicarAlerta(
+                title,
+                description,
+                'extrema',
+                latitude,
+                longitude,
+                true
+              );
+            },
+            async (error) => {
+              console.warn(
+                'No se pudo obtener la ubicación. Publicando sin ubicación.'
+              );
+              await publicarAlerta(
+                title,
+                description,
+                'extrema',
+                null,
+                null,
+                true
+              );
+            }
+          );
+        } else {
+          publicarAlerta(title, description, 'extrema', null, null, true);
+        }
+      }
     </script>
   </body>
 </html>
