@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>xValencia - Alertas en Tiempo Real</title>
+  </head>
+
+  <body>
+    <header>
+      <h1>Centro de Alertas de xValencia</h1>
+      <p>Alertas en tiempo real para la comunidad</p>
+    </header>
+
+    <main>
+      <section id="alerts">
+        <h2>Alertas Actuales</h2>
+        <div id="alert-list"></div>
+      </section>
+
+      <section id="publish-alert">
+        <h2>Publicar una Nueva Alerta</h2>
+        <form id="alert-form">
+          <label for="title">Título de la Alerta:</label>
+          <input type="text" id="title" required />
+
+          <label for="description">Descripción:</label>
+          <textarea id="description" required></textarea>
+
+          <label for="priority">Prioridad:</label>
+          <select id="priority" required>
+            <option value="alta">Alta</option>
+            <option value="media" selected>Media</option>
+            <option value="baja">Baja</option>
+          </select>
+
+          <button type="submit">Enviar Alerta</button>
+        </form>
+      </section>
+    </main>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
+      import { getAnalytics } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-analytics.js';
+      import {
+        getFirestore,
+        collection,
+        addDoc,
+        onSnapshot,
+        query,
+        orderBy,
+        serverTimestamp,
+      } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js';
+
+      // Configuración de Firebase
+      const firebaseConfig = {
+        apiKey: 'AIzaSyBZ_l6TenfvV2lwEMTKGiOSm0vsX668jZY',
+        authDomain: 'xvalencia-68bbd.firebaseapp.com',
+        projectId: 'xvalencia-68bbd',
+        storageBucket: 'xvalencia-68bbd.appspot.com',
+        messagingSenderId: '334928529789',
+        appId: '1:334928529789:web:c103066085d58aabfe2414',
+        measurementId: 'G-KF5BNC5VY7',
+      };
+
+      // Inicializar Firebase y Firestore
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
+      const db = getFirestore(app);
+
+      // Referencia a la colección de alertas en Firestore
+      const alertsRef = collection(db, 'alerts');
+
+      const toRad = (defrees) => {
+        return (defrees * Math.PI) / 180;
+      };
+
+      const distInMesters = (lat1, lon1, lat2, lon2) => {
+        const R = 6371e3; // Radio de la Tierra en metros
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(lat1)) *
+            Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      };
+
+      // Escuchar cambios en tiempo real en la colección "alerts"
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const userLat = position.coords.latitude;
+            const userLon = position.coords.longitude;
+
+            // Escuchar cambios en tiempo real en la colección "alerts"
+            const alertList = document.getElementById('alert-list');
+            const q = query(alertsRef, orderBy('timestamp', 'desc'));
+            onSnapshot(q, (snapshot) => {
+              alertList.innerHTML = ''; // Limpia el contenido antes de mostrar alertas nuevas
+
+              snapshot.forEach((doc) => {
+                const alertData = doc.data();
+                const alertId = doc.id;
+
+                // Calcular la distancia solo si la alerta tiene coordenadas
+                let distanciaTexto = '';
+                if (alertData.latitude && alertData.longitude) {
+                  const distancia = distInMesters(
+                    userLat,
+                    userLon,
+                    alertData.latitude,
+                    alertData.longitude
+                  );
+                  distanciaTexto = `<p>Distancia: ${distancia.toFixed(
+                    0
+                  )} metros</>`;
+                  if (distancia < 500) {
+                    distanciaTexto += ' <strong>(Cerca)</strong>';
+                  }
+                }
+
+                // Crear el elemento de alerta en el DOM
+                const alertItem = document.createElement('div');
+                alertItem.classList.add('alert-item');
+                alertItem.setAttribute('data-id', alertId);
+                alertItem.innerHTML = `
+                            <h3>${alertData.title}</h3>
+                            <p>${alertData.description}</p>
+                            <p>Coordenadas: ${alertData.latitude}, ${
+                  alertData.longitude
+                }</p>
+                            <p>Prioridad: ${alertData.priority || 'media'}</p>
+                            ${distanciaTexto}
+                            <p>${new Date(
+                              alertData.timestamp?.seconds * 1000 || Date.now()
+                            ).toLocaleString()}</p>
+                        `;
+
+                alertList.appendChild(alertItem);
+              });
+            });
+          },
+          (error) => {
+            console.error('Error al obtener la ubicación del usuario:', error);
+          }
+        );
+      } else {
+        console.error(
+          'La geolocalización no está soportada en este navegador.'
+        );
+      }
+
+      async function publicarAlerta(
+        title,
+        description,
+        priority,
+        latitude = null,
+        longitude = null
+      ) {
+        try {
+          await addDoc(alertsRef, {
+            title: title,
+            description: description,
+            priority: priority,
+            latitude: latitude,
+            longitude: longitude,
+            timestamp: serverTimestamp(),
+          });
+          alert('Alerta enviada con éxito');
+          alertForm.reset();
+        } catch (error) {
+          console.error('Error al enviar la alerta:', error);
+        }
+      }
+
+      // Enviar una nueva alerta a Firestore
+      const alertForm = document.getElementById('alert-form');
+      alertForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const title = document.getElementById('title').value;
+        const description = document.getElementById('description').value;
+        const priority = document.getElementById('priority').value;
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const latitude = position.coords.latitude;
+              const longitude = position.coords.longitude;
+
+              await publicarAlerta(
+                title,
+                description,
+                priority,
+                latitude,
+                longitude
+              );
+            },
+            async (error) => {
+              console.warn(
+                'No se pudo obtener la ubicación. Publicando sin ubicación.'
+              );
+              // Publicar la alerta sin ubicación si falla la geolocalización
+              await publicarAlerta(title, description, priority, null, null);
+            }
+          );
+        } else {
+          console.warn(
+            'La geolocalización no está soportada en este navegador. Publicando sin ubicación.'
+          );
+          await publicarAlerta(title, description, priority, null, null);
+        }
+      });
+    </script>
+  </body>
+</html>
