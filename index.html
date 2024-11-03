@@ -294,22 +294,6 @@
         }
       }
 
-      function initializeAlerts() {
-        fetchAlerts();
-
-        const intervalId = setInterval(fetchAlerts, 10000);
-
-        return () => clearInterval(intervalId);
-      }
-
-      const cleanup = initializeAlerts();
-
-      function stopFetchingAlerts() {
-        cleanup();
-      }
-
-      initializeAlerts();
-
       window.llamar112 = llamar112;
       window.irAAyudar = irAAyudar;
       window.enviarMensaje = enviarMensaje;
