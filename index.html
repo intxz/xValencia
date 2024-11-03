@@ -64,14 +64,43 @@
         try {
           const response = await fetch(`${BASE_URL}/alerts`);
           const alerts = await response.json();
-          displayAlerts(alerts);
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                const userLat = position.coords.latitude;
+                const userLon = position.coords.longitude;
+                displayAlerts(alerts, userLat, userLon);
+              },
+              () => displayAlerts(alerts)
+            );
+          } else {
+            displayAlerts(alerts);
+          }
         } catch (error) {
           console.error('Error obteniendo alertas:', error);
         }
       }
 
+      function toRad(angle) {
+        return (angle * Math.PI) / 180;
+      }
+      function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3; // Radio de la Tierra en metros
+        const toRad = (angle) => (angle * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(lat1)) *
+            Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      }
+
       // Mostrar alertas en la interfaz
-      function displayAlerts(alerts) {
+      function displayAlerts(alerts, userLat = null, userLon = null) {
         const alertList = document.getElementById('alert-list');
         alertList.innerHTML = '';
 
@@ -82,9 +111,33 @@
             media: 3,
             baja: 4,
           };
-          return (
-            (priorityOrder[a.priority] || 5) - (priorityOrder[b.priority] || 5)
-          );
+          const priorityDifference =
+            (priorityOrder[a.priority] || 5) - (priorityOrder[b.priority] || 5);
+          if (
+            priorityDifference === 0 &&
+            userLat !== null &&
+            userLon !== null &&
+            a.latitude &&
+            a.longitude &&
+            b.latitude &&
+            b.longitude
+          ) {
+            const distanceA = calculateDistance(
+              userLat,
+              userLon,
+              a.latitude,
+              a.longitude
+            );
+            const distanceB = calculateDistance(
+              userLat,
+              userLon,
+              b.latitude,
+              b.longitude
+            );
+            return distanceA - distanceB;
+          }
+
+          return priorityDifference;
         });
 
         alerts.forEach((alert) => {
@@ -92,11 +145,24 @@
           alertItem.classList.add('alert-item');
           if (alert.priority === 'extrema') alertItem.classList.add('extrema');
 
+          let distanceText = '';
+          if (alert.latitude && alert.longitude && userLat && userLon) {
+            const distance = calculateDistance(
+              userLat,
+              userLon,
+              alert.latitude,
+              alert.longitude
+            );
+            distanceText = `<p>Distancia: ${distance.toFixed(0)} metros ${
+              distance < 500 ? '<strong>(Cerca)</strong>' : ''
+            }</p>`;
+          }
           alertItem.innerHTML = `
             <h3>${alert.title}</h3>
-            <h3>${alert.ID}</h3>
             <p>${alert.description}</p>
             <p>Prioridad: ${alert.priority || 'media'}</p>
+            <p>${alert.latitude}, ${alert.longitude}</p>
+            </p>${distanceText}</p>
             <p>${new Date(alert.timestamp).toLocaleString()}</p>
             <p><strong>Personas ayudando: ${alert.helpCount || 0}</strong></p>
             <button onclick="irAAyudar('${alert.id}')">Ir a Ayudar</button>
@@ -210,6 +276,7 @@
         const title = '¡Peligro Inmediato!';
         const description = 'Llamada de emergencia solicitada';
         const priority = 'extrema';
+        window.location.href = 'tel:112';
 
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
@@ -226,6 +293,22 @@
           publicarAlerta(title, description, priority, null, null);
         }
       }
+
+      function initializeAlerts() {
+        fetchAlerts();
+
+        const intervalId = setInterval(fetchAlerts, 10000);
+
+        return () => clearInterval(intervalId);
+      }
+
+      const cleanup = initializeAlerts();
+
+      function stopFetchingAlerts() {
+        cleanup();
+      }
+
+      initializeAlerts();
 
       window.llamar112 = llamar112;
       window.irAAyudar = irAAyudar;
