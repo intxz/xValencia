@@ -16,11 +16,15 @@
     <button type="button" id="danger-alert-btn" onclick="llamar112()">
       Botón del pánico
     </button>
-    <small
-      >Este botón es exclusivamente para indicar un peligro inminente. Al
-      pulsarlo, se creará una alerta con alta prioridad y tendrás la opción de
-      llamar al 112.</small
-    >
+    <small>
+      Este botón es exclusivamente para indicar un peligro inminente y permite
+      crear una alerta con alta prioridad, además de ofrecer la opción de llamar
+      al 112.
+      <strong
+        >No reemplaza las llamadas de emergencia habituales y estas deben ser
+        realizadas en caso de necesidad inmediata.</strong
+      >
+    </small>
 
     <main>
       <section id="publish-alert">
@@ -90,6 +94,7 @@
 
           alertItem.innerHTML = `
             <h3>${alert.title}</h3>
+            <h3>${alert.ID}</h3>
             <p>${alert.description}</p>
             <p>Prioridad: ${alert.priority || 'media'}</p>
             <p>${new Date(alert.timestamp).toLocaleString()}</p>
@@ -100,7 +105,7 @@
             <div id="message-list-${alert.id}">
             ${
               alert.messages && alert.messages.length > 0
-                ? alert.messages.map((msg) => `<p>${msg}</p>`).join('')
+                ? alert.messages.map((msg) => `<p>- ${msg}</p>`).join('')
                 : '<p>No hay mensajes aún</p>'
             }
             </div>
@@ -223,6 +228,8 @@
       }
 
       window.llamar112 = llamar112;
+      window.irAAyudar = irAAyudar;
+      window.enviarMensaje = enviarMensaje;
 
       // Inicializar al cargar la página
       fetchAlerts();
