@@ -59,7 +59,14 @@
           >Estas alertas tienen un tiempo de vida de 24 horas y, después de ese
           período, se eliminarán automáticamente.</small
         >
-
+        <label for="priority-filter">Filtrar por Prioridad:</label>
+        <select id="priority-filter" onchange="applyPriorityFilter()">
+          <option value="todas">Todas</option>
+          <option value="extrema">Extrema</option>
+          <option value="alta">Alta</option>
+          <option value="media">Media</option>
+          <option value="baja">Baja</option>
+        </select>
         <div id="alert-list"></div>
       </section>
     </main>
@@ -67,8 +74,14 @@
     <script type="module">
       const BASE_URL = 'https://xvalencia-backend.onrender.com';
 
+      function applyPriorityFilter() {
+        const selectedPriority =
+          document.getElementById('priority-filter').value;
+        fetchAlerts(selectedPriority);
+      }
+
       // Obtener alertas
-      async function fetchAlerts() {
+      async function fetchAlerts(selectedPriority = 'todas') {
         try {
           const response = await fetch(`${BASE_URL}/alerts`);
           const alerts = await response.json();
@@ -77,12 +90,12 @@
               (position) => {
                 const userLat = position.coords.latitude;
                 const userLon = position.coords.longitude;
-                displayAlerts(alerts, userLat, userLon);
+                displayAlerts(alerts, userLat, userLon, selectedPriority);
               },
-              () => displayAlerts(alerts)
+              () => displayAlerts(alerts, null, null, selectedPriority)
             );
           } else {
-            displayAlerts(alerts);
+            displayAlerts(alerts, null, null, selectedPriority);
           }
         } catch (error) {
           console.error('Error obteniendo alertas:', error);
@@ -108,11 +121,20 @@
       }
 
       // Mostrar alertas en la interfaz
-      function displayAlerts(alerts, userLat = null, userLon = null) {
+      function displayAlerts(
+        alerts,
+        userLat = null,
+        userLon = null,
+        selectedPriority = 'todas'
+      ) {
         const alertList = document.getElementById('alert-list');
         alertList.innerHTML = '';
+        const filteredAlerts = alerts.filter(
+          (alert) =>
+            selectedPriority === 'todas' || alert.priority === selectedPriority
+        );
 
-        alerts.sort((a, b) => {
+        filteredAlerts.sort((a, b) => {
           const priorityOrder = {
             extrema: 1,
             alta: 2,
@@ -148,7 +170,7 @@
           return priorityDifference;
         });
 
-        alerts.forEach((alert) => {
+        filteredAlerts.forEach((alert) => {
           const alertItem = document.createElement('div');
           alertItem.classList.add('alert-item');
           if (alert.priority === 'extrema') alertItem.classList.add('extrema');
@@ -303,6 +325,7 @@
       }
 
       window.llamar112 = llamar112;
+      window.applyPriorityFilter = applyPriorityFilter;
       window.irAAyudar = irAAyudar;
       window.enviarMensaje = enviarMensaje;
 
