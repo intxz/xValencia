@@ -16,6 +16,11 @@
     <button type="button" id="danger-alert-btn" onclick="llamar112()">
       Botón del pánico
     </button>
+    <small
+      >Este botón es exclusivamente para indicar un peligro inminente. Al
+      pulsarlo, se creará una alerta con alta prioridad y tendrás la opción de
+      llamar al 112.</small
+    >
 
     <main>
       <section id="publish-alert">
@@ -39,279 +44,188 @@
       </section>
       <section id="alerts">
         <h2>Alertas Actuales</h2>
+        <small
+          >Estas alertas tienen un tiempo de vida de 24 horas y, después de ese
+          período, se eliminarán automáticamente.</small
+        >
         <div id="alert-list"></div>
       </section>
     </main>
 
-    <!-- Firebase SDKs -->
     <script type="module">
-      import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
-      import { getAnalytics } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-analytics.js';
-      import {
-        getFirestore,
-        collection,
-        getDoc,
-        addDoc,
-        onSnapshot,
-        query,
-        orderBy,
-        serverTimestamp,
-        doc,
-        updateDoc,
-      } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js';
+      const BASE_URL = 'https://xvalencia-backend.onrender.com';
 
-      // Configuración de Firebase
-      const firebaseConfig = {
-        apiKey: 'AIzaSyBZ_l6TenfvV2lwEMTKGiOSm0vsX668jZY',
-        authDomain: 'xvalencia-68bbd.firebaseapp.com',
-        projectId: 'xvalencia-68bbd',
-        storageBucket: 'xvalencia-68bbd.appspot.com',
-        messagingSenderId: '334928529789',
-        appId: '1:334928529789:web:c103066085d58aabfe2414',
-        measurementId: 'G-KF5BNC5VY7',
-      };
-
-      const app = initializeApp(firebaseConfig);
-      const analytics = getAnalytics(app);
-      const db = getFirestore(app);
-
-      const alertsRef = collection(db, 'alerts');
-
-      // Función para convertir grados a radianes
-      const toRad = (degrees) => {
-        return (degrees * Math.PI) / 180;
-      };
-
-      // Función para calcular la distancia entre dos puntos geográficos
-      const distInMesters = (lat1, lon1, lat2, lon2) => {
-        const R = 6371e3; // Radio de la Tierra en metros
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(toRad(lat1)) *
-            Math.cos(toRad(lat2)) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-      };
-
-      // Escuchar cambios en tiempo real en la colección "alerts"
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const userLat = position.coords.latitude;
-            const userLon = position.coords.longitude;
-
-            const alertList = document.getElementById('alert-list');
-            const q = query(alertsRef, orderBy('timestamp', 'desc'));
-            onSnapshot(q, (snapshot) => {
-              alertList.innerHTML = '';
-
-              const alertsArray = [];
-              snapshot.forEach((doc) => {
-                const alertData = doc.data();
-                alertData.id = doc.id;
-                alertsArray.push(alertData);
-              });
-
-              alertsArray.sort((a, b) => {
-                const priorityOrder = {
-                  extrema: 1,
-                  alta: 2,
-                  media: 3,
-                  baja: 4,
-                };
-                return (
-                  (priorityOrder[a.priority] || 5) -
-                  (priorityOrder[b.priority] || 5)
-                );
-              });
-              alertsArray.forEach((alertData) => {
-                const alertId = alertData.id;
-
-                let distanciaTexto = '';
-                if (alertData.latitude && alertData.longitude) {
-                  const distancia = distInMesters(
-                    userLat,
-                    userLon,
-                    alertData.latitude,
-                    alertData.longitude
-                  );
-                  distanciaTexto = `<p>Distancia: ${distancia.toFixed(
-                    0
-                  )} metros</>`;
-                  if (distancia < 500) {
-                    distanciaTexto += ' <strong>(Cerca)</strong>';
-                  }
-                }
-
-                const alertItem = document.createElement('div');
-                alertItem.classList.add('alert-item');
-                if (alertData.priority === 'extrema') {
-                  alertItem.classList.add('extrema');
-                }
-                alertItem.setAttribute('data-id', alertId);
-                alertItem.innerHTML = `
-                            <h3>${alertData.title}</h3>
-                            <p>${alertData.description}</p>
-                           <p>Coordenadas: ${alertData.latitude.toString()}, ${alertData.longitude.toString()}</p>
-                            <p>Prioridad: ${alertData.priority || 'media'}</p>
-                            ${distanciaTexto}
-                            <p>${new Date(
-                              alertData.timestamp?.seconds * 1000 || Date.now()
-                            ).toLocaleString()}</p>
-                            <p><strong>Personas ayudando: ${
-                              alertData.helpCount || 0
-                            }</strong></p>
-                            <button onclick="irAAyudar('${alertId}')">Ir a Ayudar</button>
-                        `;
-
-                alertList.appendChild(alertItem);
-              });
-            });
-          },
-          (error) => {
-            console.error('Error al obtener la ubicación del usuario:', error);
-          }
-        );
-      } else {
-        console.error(
-          'La geolocalización no está soportada en este navegador.'
-        );
+      // Obtener alertas
+      async function fetchAlerts() {
+        try {
+          const response = await fetch(`${BASE_URL}/alerts`);
+          const alerts = await response.json();
+          displayAlerts(alerts);
+        } catch (error) {
+          console.error('Error obteniendo alertas:', error);
+        }
       }
 
+      // Mostrar alertas en la interfaz
+      function displayAlerts(alerts) {
+        const alertList = document.getElementById('alert-list');
+        alertList.innerHTML = '';
+
+        alerts.sort((a, b) => {
+          const priorityOrder = {
+            extrema: 1,
+            alta: 2,
+            media: 3,
+            baja: 4,
+          };
+          return (
+            (priorityOrder[a.priority] || 5) - (priorityOrder[b.priority] || 5)
+          );
+        });
+
+        alerts.forEach((alert) => {
+          const alertItem = document.createElement('div');
+          alertItem.classList.add('alert-item');
+          if (alert.priority === 'extrema') alertItem.classList.add('extrema');
+
+          alertItem.innerHTML = `
+            <h3>${alert.title}</h3>
+            <p>${alert.description}</p>
+            <p>Prioridad: ${alert.priority || 'media'}</p>
+            <p>${new Date(alert.timestamp).toLocaleString()}</p>
+            <p><strong>Personas ayudando: ${alert.helpCount || 0}</strong></p>
+            <button onclick="irAAyudar('${alert.id}')">Ir a Ayudar</button>
+            <section id="messages-${alert.id}">
+            <h4>Mensajes</h4>
+            <div id="message-list-${alert.id}">
+            ${
+              alert.messages && alert.messages.length > 0
+                ? alert.messages.map((msg) => `<p>${msg}</p>`).join('')
+                : '<p>No hay mensajes aún</p>'
+            }
+            </div>
+            <textarea id="message-input-${
+              alert.id
+            }" placeholder="Escribe un mensaje"></textarea>
+            <button onclick="enviarMensaje('${
+              alert.id
+            }')">Enviar Mensaje</button>
+            </section>
+          `;
+          alertList.appendChild(alertItem);
+        });
+      }
+
+      // Publicar una alerta
       async function publicarAlerta(
         title,
         description,
         priority,
-        latitude = null,
-        longitude = null,
-        isImmediate = false
+        latitude,
+        longitude
       ) {
         try {
-          const now = new Date();
-          const expirationTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-          await addDoc(alertsRef, {
-            title: title,
-            description: description,
-            priority: isImmediate ? 'extrema' : priority,
-            latitude: latitude,
-            longitude: longitude,
-            timestamp: serverTimestamp(),
-            expirationTimestamp: expirationTime,
-            helpCount: 0,
+          await fetch(`${BASE_URL}/alerts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title,
+              description,
+              priority,
+              latitude,
+              longitude,
+            }),
           });
-          alertForm.reset();
+          fetchAlerts(); // Actualiza la lista de alertas después de publicar
         } catch (error) {
           console.error('Error al enviar la alerta:', error);
         }
       }
 
       async function irAAyudar(alertId) {
-        const alertDocRef = doc(db, 'alerts', alertId);
-
         try {
-          // Obtener el documento actual para leer el valor de helpCount
-          const alertSnapshot = await getDoc(alertDocRef);
-          const currentHelpCount = alertSnapshot.data().helpCount || 0;
-
-          // Actualizar el campo helpCount incrementándolo en 1
-          await updateDoc(alertDocRef, {
-            helpCount: currentHelpCount + 1,
+          await fetch(`${BASE_URL}/alerts/${alertId}/help`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
           });
-
-          console.log(
-            `Ayudando en alerta ${alertId}, personas ayudando: ${
-              currentHelpCount + 1
-            }`
-          );
+          fetchAlerts();
         } catch (error) {
-          console.error('Error al actualizar contador de ayuda:', error);
+          console.error('Error al actualizar el contador de ayuda:', error);
         }
       }
 
-      // Enviar una nueva alerta a Firestore
-      const alertForm = document.getElementById('alert-form');
-      alertForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
+      async function enviarMensaje(alertId) {
+        const messageInput = document.getElementById(
+          `message-input-${alertId}`
+        );
+        const message = messageInput.value;
 
+        if (message.trim() === '') return; // No enviar mensajes vacíos
+
+        try {
+          await fetch(`${BASE_URL}/alerts/${alertId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message }),
+          });
+          fetchAlerts(); // Actualiza los mensajes después de enviar uno nuevo
+          messageInput.value = ''; // Limpiar el campo de mensaje
+        } catch (error) {
+          console.error('Error al enviar el mensaje:', error);
+        }
+      }
+
+      // Manejo del formulario de alertas
+      const alertForm = document.getElementById('alert-form');
+      alertForm.addEventListener('submit', (event) => {
+        event.preventDefault();
         const title = document.getElementById('title').value;
         const description = document.getElementById('description').value;
         const priority = document.getElementById('priority').value;
 
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
-            async (position) => {
+            (position) => {
               const latitude = position.coords.latitude;
               const longitude = position.coords.longitude;
-
-              await publicarAlerta(
-                title,
-                description,
-                priority,
-                latitude,
-                longitude
-              );
+              publicarAlerta(title, description, priority, latitude, longitude);
             },
-            async (error) => {
-              console.warn(
-                'No se pudo obtener la ubicación. Publicando sin ubicación.'
-              );
-              await publicarAlerta(title, description, priority, null, null);
+            () => {
+              publicarAlerta(title, description, priority, null, null);
             }
           );
         } else {
-          await publicarAlerta(title, description, priority, null, null);
+          publicarAlerta(title, description, priority, null, null);
         }
+        alertForm.reset();
       });
 
-      // Definir la función llamar112 para el botón de pánico
+      // Botón de emergencia
       function llamar112() {
-        console.log('Botón de pánico presionado');
-        window.location.href = 'tel:652';
-
         const title = '¡Peligro Inmediato!';
         const description = 'Llamada de emergencia solicitada';
+        const priority = 'extrema';
 
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
-            async (position) => {
-              console.log('Ubicación obtenida');
+            (position) => {
               const latitude = position.coords.latitude;
               const longitude = position.coords.longitude;
-              await publicarAlerta(
-                title,
-                description,
-                'extrema',
-                latitude,
-                longitude,
-                true
-              );
+              publicarAlerta(title, description, priority, latitude, longitude);
             },
-            async (error) => {
-              console.warn(
-                'No se pudo obtener la ubicación. Publicando sin ubicación.'
-              );
-              await publicarAlerta(
-                title,
-                description,
-                'extrema',
-                null,
-                null,
-                true
-              );
+            () => {
+              publicarAlerta(title, description, priority, null, null);
             }
           );
         } else {
-          publicarAlerta(title, description, 'extrema', null, null, true);
+          publicarAlerta(title, description, priority, null, null);
         }
       }
 
-      // Exponer la función para que sea accesible globalmente
       window.llamar112 = llamar112;
-      window.irAAyudar = irAAyudar;
+
+      // Inicializar al cargar la página
+      fetchAlerts();
     </script>
   </body>
 </html>
