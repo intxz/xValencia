@@ -50,11 +50,14 @@
       import {
         getFirestore,
         collection,
+        getDoc,
         addDoc,
         onSnapshot,
         query,
         orderBy,
         serverTimestamp,
+        doc,
+        updateDoc,
       } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js';
 
       // Configuración de Firebase
@@ -74,10 +77,12 @@
 
       const alertsRef = collection(db, 'alerts');
 
-      const toRad = (defrees) => {
-        return (defrees * Math.PI) / 180;
+      // Función para convertir grados a radianes
+      const toRad = (degrees) => {
+        return (degrees * Math.PI) / 180;
       };
 
+      // Función para calcular la distancia entre dos puntos geográficos
       const distInMesters = (lat1, lon1, lat2, lon2) => {
         const R = 6371e3; // Radio de la Tierra en metros
         const dLat = toRad(lat2 - lat1);
@@ -99,17 +104,33 @@
             const userLat = position.coords.latitude;
             const userLon = position.coords.longitude;
 
-            // Escuchar cambios en tiempo real en la colección "alerts"
             const alertList = document.getElementById('alert-list');
             const q = query(alertsRef, orderBy('timestamp', 'desc'));
             onSnapshot(q, (snapshot) => {
               alertList.innerHTML = '';
 
+              const alertsArray = [];
               snapshot.forEach((doc) => {
                 const alertData = doc.data();
-                const alertId = doc.id;
+                alertData.id = doc.id;
+                alertsArray.push(alertData);
+              });
 
-                // Calcular la distancia solo si la alerta tiene coordenadas
+              alertsArray.sort((a, b) => {
+                const priorityOrder = {
+                  extrema: 1,
+                  alta: 2,
+                  media: 3,
+                  baja: 4,
+                };
+                return (
+                  (priorityOrder[a.priority] || 5) -
+                  (priorityOrder[b.priority] || 5)
+                );
+              });
+              alertsArray.forEach((alertData) => {
+                const alertId = alertData.id;
+
                 let distanciaTexto = '';
                 if (alertData.latitude && alertData.longitude) {
                   const distancia = distInMesters(
@@ -126,9 +147,11 @@
                   }
                 }
 
-                // Crear el elemento de alerta en el DOM
                 const alertItem = document.createElement('div');
                 alertItem.classList.add('alert-item');
+                if (alertData.priority === 'extrema') {
+                  alertItem.classList.add('extrema');
+                }
                 alertItem.setAttribute('data-id', alertId);
                 alertItem.innerHTML = `
                             <h3>${alertData.title}</h3>
@@ -139,6 +162,10 @@
                             <p>${new Date(
                               alertData.timestamp?.seconds * 1000 || Date.now()
                             ).toLocaleString()}</p>
+                            <p><strong>Personas ayudando: ${
+                              alertData.helpCount || 0
+                            }</strong></p>
+                            <button onclick="irAAyudar('${alertId}')">Ir a Ayudar</button>
                         `;
 
                 alertList.appendChild(alertItem);
@@ -169,16 +196,39 @@
           await addDoc(alertsRef, {
             title: title,
             description: description,
-            priority: isImmediate ? 'alta' : priority,
+            priority: isImmediate ? 'extrema' : priority,
             latitude: latitude,
             longitude: longitude,
             timestamp: serverTimestamp(),
             expirationTimestamp: expirationTime,
+            helpCount: 0,
           });
-          alert('Alerta enviada con éxito');
           alertForm.reset();
         } catch (error) {
           console.error('Error al enviar la alerta:', error);
+        }
+      }
+
+      async function irAAyudar(alertId) {
+        const alertDocRef = doc(db, 'alerts', alertId);
+
+        try {
+          // Obtener el documento actual para leer el valor de helpCount
+          const alertSnapshot = await getDoc(alertDocRef);
+          const currentHelpCount = alertSnapshot.data().helpCount || 0;
+
+          // Actualizar el campo helpCount incrementándolo en 1
+          await updateDoc(alertDocRef, {
+            helpCount: currentHelpCount + 1,
+          });
+
+          console.log(
+            `Ayudando en alerta ${alertId}, personas ayudando: ${
+              currentHelpCount + 1
+            }`
+          );
+        } catch (error) {
+          console.error('Error al actualizar contador de ayuda:', error);
         }
       }
 
@@ -209,29 +259,26 @@
               console.warn(
                 'No se pudo obtener la ubicación. Publicando sin ubicación.'
               );
-              // Publicar la alerta sin ubicación si falla la geolocalización
               await publicarAlerta(title, description, priority, null, null);
             }
           );
         } else {
-          console.warn(
-            'La geolocalización no está soportada en este navegador. Publicando sin ubicación.'
-          );
           await publicarAlerta(title, description, priority, null, null);
         }
       });
 
+      // Definir la función llamar112 para el botón de pánico
       function llamar112() {
-        // Abrir el marcador del teléfono con el número 112
-        window.location.href = 'tel:+34644429814';
+        console.log('Botón de pánico presionado');
+        window.location.href = 'tel:652';
 
-        // Publicar una alerta de peligro inmediato después de intentar la llamada
         const title = '¡Peligro Inmediato!';
-        const description = 'Llamada de emergencia al 112 solicitada';
+        const description = 'Llamada de emergencia solicitada';
 
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             async (position) => {
+              console.log('Ubicación obtenida');
               const latitude = position.coords.latitude;
               const longitude = position.coords.longitude;
               await publicarAlerta(
@@ -261,6 +308,10 @@
           publicarAlerta(title, description, 'extrema', null, null, true);
         }
       }
+
+      // Exponer la función para que sea accesible globalmente
+      window.llamar112 = llamar112;
+      window.irAAyudar = irAAyudar;
     </script>
   </body>
 </html>

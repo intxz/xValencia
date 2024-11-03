@@ -3,72 +3,78 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-  }
+}
   
-  /* Estilos generales */
-  body {
+/* Estilos generales */
+body {
     font-family: Arial, sans-serif;
-  }
+}
   
-  header {
+header {
     padding: 15px;
     text-align: center;
-  }
+}
   
-  h1 {
+h1 {
     font-size: 1.6em;
     margin-bottom: 10px;
-  }
+}
   
-  h2 {
+h2 {
     margin: 15px 0 10px;
-  }
+}
   
-  main {
+main {
     padding: 15px;
-  }
+}
   
-  .alert-item {
+.alert-item {
     padding: 10px;
     margin-bottom: 10px;
     border: 1px solid #ddd;
-  }
-  
-  .alert-item h3 {
+}
+
+/* Estilo para alertas de prioridad extrema */
+.alert-item.extrema {
+    background-color: #ffcccc; /* Fondo rojo claro */
+    border-color: #ff0000; /* Borde rojo */
+}
+
+.alert-item h3 {
     margin-bottom: 5px;
-  }
+}
   
-  .alert-item p {
+.alert-item p {
     margin: 5px 0;
-  }
+}
   
-  #alert-form {
+#alert-form {
     display: flex;
     flex-direction: column;
-  }
+}
   
-  #alert-form label {
+#alert-form label {
     font-size: 0.9em;
     margin-bottom: 5px;
-  }
+}
   
-  #alert-form input, 
-  #alert-form select, 
-  #alert-form textarea {
+#alert-form input, 
+#alert-form select, 
+#alert-form textarea {
     padding: 8px;
     margin-bottom: 10px;
     width: 100%;
-  }
+}
   
-  button {
+button {
     padding: 10px;
     border-radius: 3px;
     cursor: pointer;
     text-align: center;
-  }
+}
   
-  /* Ajustes específicos para dispositivos móviles */
-  @media (max-width: 600px) {
+/* Ajustes específicos para dispositivos móviles */
+@media (max-width: 600px) {
     body {
       padding: 10px;
     }
@@ -96,5 +102,4 @@
       padding: 10px;
       font-size: 0.9em;
     }
-  }
-  
+}
